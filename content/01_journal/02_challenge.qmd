@@ -1,0 +1,97 @@
+
+---
+title: "Challenge 2 "
+author: "Benjamin Knaack"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+###### Step 1 - Build a model (linear regression) and import libraries.
+```{r echo=TRUE, eval=TRUE}
+
+
+library(tidyverse)
+library(parsnip)
+library(recipes)
+library(rsample)
+library(yardstick)
+library(workflows)
+
+
+
+bike_features_tbl <- readRDS("~/Documents/GitHub/ss23-bdml-BenjamKna/bike_features_tbl.rds")
+#glimpse(bike_features_tbl)
+#names(bike_features_tbl)
+
+
+bike_features_tbl <- bike_features_tbl %>% 
+  filter(category_2 != "E-Road" & category_2 != "Fat Bikes" & category_2 != "Adventure"& category_2 != "Downhill" & category_2 != "Dirt Jump" & category_2 != "E-Gravel" & category_2 != "E-Fitness" ) 
+
+
+model_linear_lm <- linear_reg(mode = "regression") %>%
+  set_engine("lm")
+```
+
+##### Step 2 - Create features with the recipes package. First the dataset is split into test and training part. In the recipe the price is defined as the outcome with the 'Tyre 1' part and category 2 as predictors. For both dummy variables are created. Fitting of the model is done in step 4 with the fit function.
+
+```{r echo=TRUE, eval=TRUE}
+
+data_split <- initial_split(bike_features_tbl,  prop   = 0.80, 
+                            strata = "category_2")
+
+# Create data frames for the two sets:
+train_tbl <- training(data_split)
+test_tbl  <- testing(data_split)
+
+
+recipe_obj <- recipe(price ~ category_2 + `Tyre 1` , data = train_tbl) %>%
+  step_dummy(category_2 ,`Tyre 1`, one_hot = TRUE) %>%
+  step_naomit(all_predictors()) %>%
+  step_zv(all_predictors()) 
+
+ # prep_recipe_obj <- prep(recipe_obj,train_tbl)
+
+
+
+  #train_transformed_tbl <- bake(prep_obj, train_tbl)
+  #test_transformed_tbl  <- bake(prep_obj, test_tbl)
+
+```
+
+
+###### Step 3 - Bundle the model and recipe with the workflow package
+```{r echo=TRUE, eval=TRUE}
+bikefeat_wflow <- 
+  workflow() %>% 
+  add_model(model_linear_lm) %>% 
+  add_recipe(recipe_obj)
+
+```
+###### Step 4 - Evaluate your model with the yardstick package
+```{r echo=TRUE, eval=TRUE, warning=FALSE}
+calc_metrics <- function(model, new_data = test_tbl) {
+  
+  model %>%
+    predict(new_data = new_data) %>%
+    
+    bind_cols(new_data %>% select(price)) %>%
+    yardstick::metrics(truth = price, estimate = .pred)
+  
+}
+
+
+
+bikefeat_fitted_mod <- 
+  bikefeat_wflow %>% 
+  fit(data = train_tbl)
+
+
+bikefeat_fitted_mod %>% calc_metrics(test_tbl)
+
+
+```
+
+
+
+
+
