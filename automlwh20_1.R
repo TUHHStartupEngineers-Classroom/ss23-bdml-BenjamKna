@@ -634,8 +634,8 @@ employee_attrition_tbl %>%
 # 2. Compensation Features
 # What can you deduce about the interaction between Percent Salary Hike and Attrition?
 
-### c. Those that are leaving have lower Percent Salary Hike
-# d. It's difficult to deduce anything based on the visualization
+# d. It's difficult to deduce anything based on the visualization. 
+# ... but rather c than a or b.
 
 # 3. Compensation Features
 # What can you deduce about the interaction between Stock Option Level and Attrition?
@@ -656,3 +656,18 @@ employee_attrition_tbl %>%
 # 7. Work-Life Features
 # What can you deduce about the interaction between Over Time and Attrition?
 # a. The proportion of those leaving that are working Over Time are high compared to those that are not leaving
+
+
+# 8. Training and Education
+# What can you deduce about the interaction between Training Times Last Year and Attrition
+# b. People that leave tend to have less annual trainings
+
+# 9. Time-Based Features
+# What can you deduce about the interaction between Years At Company and Attrition
+# b. People that leave tend to have less working years at the company
+
+# 10. Time-Based Features
+# What can you deduce about the interaction between Years Since Last Promotion and Attrition?
+# c. It's difficult to deduce anything based on the visualization
+# ... but rather b than a.
+
