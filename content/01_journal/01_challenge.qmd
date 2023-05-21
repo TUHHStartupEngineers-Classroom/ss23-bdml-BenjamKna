@@ -1,0 +1,153 @@
+---
+title: "Challenge 1 "
+author: "Benjamin Knaack"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r echo=FALSE, eval=TRUE}
+library(tidyverse)
+library(tidyquant)
+library(broom)
+library(umap)
+
+# STOCK PRICES
+sp_500_prices_tbl <- read_rds("~/Documents/GitHub/ss23-bdml-BenjamKna/sp_500_prices_tbl.rds") #%>% select(symbol,date,adjusted)
+names(sp_500_prices_tbl)
+# SECTOR INFORMATION
+sp_500_index_tbl <- read_rds("~/Documents/GitHub/ss23-bdml-BenjamKna/sp_500_index_tbl.rds")
+#names(sp_500_index_tbl)
+
+
+
+```
+### QUESTION: Which stocks behave similarly?
+
+
+##### Step 1 - Convert stock prices to a standardized format (daily returns)
+```{r echo=TRUE, eval=TRUE}
+sp_500_daily_returns_tbl <- sp_500_prices_tbl %>% 
+                select(symbol,date,adjusted) %>%
+                filter(lubridate::year(date) >= 2018) %>%
+                group_by(symbol) %>%
+                mutate(lagged_price = lag(adjusted, n = 1)) %>%
+                na.omit() %>%# filter(!is.na(.))
+                mutate(diff_adj_lag = adjusted -lagged_price) %>%
+                mutate(pct_return = diff_adj_lag/lagged_price) %>%
+                select(symbol,date,pct_return) %>%
+                print(n=10)
+
+
+```
+
+
+##### Step 2 - Convert to User-Item Format
+
+```{r}
+
+stock_date_matrix_tbl <- sp_500_daily_returns_tbl %>% 
+                pivot_wider(names_from = date, values_from = pct_return, values_fill = 0) %>%
+                ungroup() %>%
+                print()
+
+```
+
+##### Step 3 - Perform K-Means Clustering
+
+```{r}
+kmeans_obj <- stock_date_matrix_tbl %>%
+                select(-symbol) %>%
+                kmeans(centers = 4, nstart = 20)
+
+kmeans_obj %>% glance() %>% select(tot.withinss)
+
+```
+##### Step 4 - Find the optimal value of K
+
+```{r}
+
+kmeans_mapper <- function(center = 3) {
+  stock_date_matrix_tbl %>%
+    select(-symbol) %>%
+    kmeans(centers = center, nstart = 20)
+}
+
+k_means_mapped_tbl <- tibble(centers = 1:30) %>%
+  mutate(k_means = map(centers, kmeans_mapper)) %>%
+  mutate(glance = map(k_means, glance))
+
+k_means_mapped_tbl %>%
+  unnest(glance) %>%
+  select(centers, tot.withinss) %>%
+  
+  ggplot(aes(centers, tot.withinss)) +
+  geom_point(color = "#3f518f", size = 2) +
+  geom_line(color = "#3f518f", size = 1) +
+  labs(title = "Skree Plot", 
+       caption = "We can see that the Scree Plot becomes linear between 5 and 10 centers for K.")+
+  scale_x_continuous(n.breaks = 15) +
+  scale_y_continuous(n.breaks = 15) +
+  
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(face = "bold"),
+    plot.caption = element_text(face = "bold.italic", size = 8),
+    panel.grid.major = element_line(size = 0.5),
+    panel.grid.minor = element_line(size = 0.5),
+    axis.text = element_text(angle = 45, hjust = 1, face = "bold", size = 8),
+    axis.title = element_text(face = "bold")
+  )
+#kmeans_obj$cluster
+```
+
+
+
+##### Step 5 - Apply UMAP
+```{r}
+
+
+umap_results <- stock_date_matrix_tbl %>%
+  select(-symbol) %>%
+  umap()
+  
+umap_results_tbl <- umap_results$layout %>% 
+  as_tibble() %>%
+ # set_names(c("x", "y")) %>%.      #.name_repair = "unique"
+  bind_cols(stock_date_matrix_tbl %>% select(symbol))
+
+
+umap_results_tbl %>% ggplot(aes(V1, V2)) +
+  geom_point(alpha = 0.5) +
+  theme_tq() + 
+  labs(title = "UMAP Projection")
+
+```
+
+##### Step 6 - Combine K-Means and UMAP
+
+
+```{r}
+k_means_obj <- stock_date_matrix_tbl %>%
+  select(-symbol) %>%
+  kmeans(centers = 10, nstart = 20)
+
+umap_kmeans_results_tbl <- k_means_obj %>% 
+  augment(stock_date_matrix_tbl) %>%
+  select(symbol, .cluster) %>%
+  left_join(umap_results_tbl, by ="symbol") %>%
+  left_join(sp_500_index_tbl %>% select(symbol, company, sector),by="symbol")
+
+
+umap_kmeans_results_tbl %>% ggplot(aes(V1,V2,color= .cluster)) +
+  geom_point(alpha = 0.65,size = 2) +
+  viridis::scale_color_viridis(discrete = TRUE) +
+  theme_linedraw() +
+  labs(title = "Combined K-Means and UMAP results") +
+  theme(plot.title = element_text(face = "bold")) 
+#ggplot_obje <- ggplotly(ggplot_obje, tooltip = c(".cluster"))
+#ggplot_obje doesn't work
+
+```
+
+
